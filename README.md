@@ -1,75 +1,91 @@
-# Mistral AI Chat Application
+# MISTRAL CHAT
 
-A Streamlit application for chatting with Mistral AI models, including image upload capabilities.
+A minimal, elegant chat application powered by Mistral AI's multimodal models.
+
+![Mistral Chat UI](https://raw.githubusercontent.com/yourusername/streamlit-mistral/main/docs/mistral-chat-screenshot.png) <!-- Replace with your actual screenshot once available -->
 
 ## Features
 
-- Chat interface with Mistral AI models
-- Image upload for multimodal analysis
-- API connection testing
-- Secure API key management
-- Beautiful UI with autumn color palette
-
-## Screenshot
-
-![Application Screenshot](asset\preview.png)
-
-## Prerequisites
-
-- Python 3.8+
-- Mistral AI API key
+- **Clean, Minimal Interface**: Simple and elegant design for distraction-free conversations
+- **Multiple Model Support**: Choose from available Mistral AI models
+- **Image Upload**: Send images to multimodal models for analysis
+- **Token Control**: Limit token generation for faster, more focused responses
+- **Multi-Chat Management**: Create, manage, and switch between multiple conversations
+- **Responsive Design**: Works on desktop and mobile devices
 
 ## Installation
 
-1. Clone this repository:
-```bash
-git clone https://github.com/yourusername/streamlit-mistral.git
-cd streamlit-mistral
-```
+### Prerequisites
+- Python 3.8 or higher
+- A Mistral AI API key (get one at [https://console.mistral.ai/](https://console.mistral.ai/))
 
-2. Install the required packages:
-```bash
-pip install -r requirements.txt
-```
+### Setup
 
-3. Set up your Mistral API key:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/streamlit-mistral.git
+   cd streamlit-mistral
+   ```
 
-**Method 1: Environment Variable (Recommended for security)**
-```bash
-# For Windows
-setx MISTRAL_API_KEY "your-api-key-here"
+2. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-# For macOS/Linux
-export MISTRAL_API_KEY="your-api-key-here"
-```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-**Method 2: .env File**
-Create a `.env` file in the project root with the following content:
-```
-MISTRAL_API_KEY=your-api-key-here
-```
+4. Set your Mistral API key:
+   ```bash
+   # On Linux/macOS
+   export MISTRAL_API_KEY=your_api_key_here
+   
+   # On Windows (Command Prompt)
+   set MISTRAL_API_KEY=your_api_key_here
+   
+   # On Windows (PowerShell)
+   $env:MISTRAL_API_KEY="your_api_key_here"
+   ```
 
-## Running the Application
+## Usage
 
-Run the Streamlit app:
+Run the application:
 ```bash
 streamlit run app.py
 ```
 
-The application will be available at http://localhost:8501.
+The application will open in your default web browser at `http://localhost:8501`.
+
+### Managing Conversations
+
+- **Create a New Chat**: Click the "New Chat" button in the sidebar
+- **Switch Chats**: Select any conversation from the sidebar
+- **Delete a Chat**: Click the delete icon next to a chat name
+- **Rename Chat**: First message of your conversation becomes the chat title
+
+### Chat Features
+
+1. **Select a Model**: Choose from available Mistral AI models
+2. **Set Token Limit**: Control response length with the token slider
+3. **Upload Images**: Click the upload button to include images
+4. **Send Messages**: Type your message and press Enter or click Send
 
 ## Testing
 
-Run the simplified test script:
+To run automated tests for the application:
+
 ```bash
-# Run all tests
 python test.py
+```
 
-# Test only API connection
-python test.py api
+To run specific test cases:
 
-# Test only chat functionality
-python test.py chat
+```bash
+python test.py --test api  # Test API connection
+python test.py --test chat  # Test chat functionality
 ```
 
 ## Project Structure
@@ -77,63 +93,30 @@ python test.py chat
 ```
 streamlit-mistral/
 ├── app/
-│   ├── components/    # UI components
-│   │   ├── chat.py    # Chat interface
-│   │   └── sidebar.py # Sidebar settings
-│   ├── config/        # Configuration settings
-│   │   └── config.py  # Environment & app config
-│   └── utils/         # Utility modules
-│       ├── logging_util.py   # Logging utilities 
+│   ├── components/
+│   │   ├── chat.py          # Chat interface component
+│   │   └── sidebar.py       # Sidebar component
+│   ├── config/
+│   │   └── config.py        # Configuration management
+│   ├── static/
+│   │   └── logo.py          # Logo and branding elements
+│   └── utils/
+│       ├── logging_util.py  # Logging utilities
 │       └── mistral_client.py # Mistral API client
-├── .env               # (git-ignored) Environment variables
-├── .gitignore         # Git ignore file
-├── app.py             # Main Streamlit application
-├── README.md          # This README file
-├── requirements.txt   # Python dependencies
-└── test.py            # Test script
+├── .streamlit/
+│   └── config.toml          # Streamlit configuration
+├── app.py                   # Main application
+├── requirements.txt         # Project dependencies
+├── test.py                  # Test suite
+└── README.md                # This documentation
 ```
 
-## Security Considerations
+## Credits
 
-- This application uses environment variables to securely store API keys
-- The API key is never exposed in the UI
-- The .env file is included in .gitignore to prevent accidental commits of API keys
-
-## Deployment
-
-The application can be deployed to various platforms:
-
-### Streamlit Cloud
-
-1. Push your code to GitHub
-2. Create an account on [Streamlit Cloud](https://streamlit.io/cloud)
-3. Connect your repository and deploy
-4. Set your `MISTRAL_API_KEY` as a secret in the Streamlit Cloud settings
-
-### Heroku
-
-1. Create a Heroku account and install the Heroku CLI
-2. Login to Heroku and create a new app:
-```bash
-heroku login
-heroku create your-app-name
-```
-
-3. Set your API key as a Heroku environment variable:
-```bash
-heroku config:set MISTRAL_API_KEY=your-api-key-here
-```
-
-4. Deploy to Heroku:
-```bash
-git push heroku main
-```
+- Built with [Streamlit](https://streamlit.io/)
+- Powered by [Mistral AI](https://mistral.ai/) models
+- Design inspired by minimal interfaces
 
 ## License
 
-MIT
-
-## Acknowledgements
-
-- [Mistral AI](https://mistral.ai/) for their powerful language models
-- [Streamlit](https://streamlit.io/) for the simple web application framework 
+MIT License 
