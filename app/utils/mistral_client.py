@@ -9,6 +9,7 @@ import time
 from mistralai import Mistral
 from PIL import Image
 from io import BytesIO
+import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ def get_mistral_client(api_key=None):
         ValueError: If API key is not provided or found in environment
     """
     if not api_key:
-        api_key = os.environ.get("MISTRAL_API_KEY")
+        api_key = st.secrets.get("MISTRAL_API_KEY")
         
     if not api_key:
         logger.error("MISTRAL_API_KEY not found")

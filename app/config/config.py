@@ -4,6 +4,7 @@ Handles secure loading of API keys and application settings.
 """
 import os
 import logging
+import streamlit as st
 from dotenv import load_dotenv
 
 # Configure logging
@@ -20,11 +21,8 @@ def load_config():
     Returns:
         dict: Configuration dictionary
     """
-    # Load environment variables from .env file
-    load_dotenv()
-    
-    # Get API key - check environment variable first, then .env file
-    api_key = os.environ.get("MISTRAL_API_KEY")
+
+    api_key = st.secrets.get("MISTRAL_API_KEY")
     
     if not api_key:
         logger.error("MISTRAL_API_KEY not found in environment variables or .env file")

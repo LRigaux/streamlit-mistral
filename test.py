@@ -26,7 +26,6 @@ def test_api():
     
     # Charger les variables d'environnement
     load_dotenv()
-    
     # Récupérer la clé API
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
