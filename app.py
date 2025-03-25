@@ -72,35 +72,47 @@ def main():
         .stSidebar {
             background-color: rgba(58, 42, 58, 0.9);
         }
+        
+        /* Chat management styling */
+        div[data-testid="stForm"] {
+            background-color: rgba(58, 42, 58, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--burgundy);
+        }
+        
+        .stSelectbox label {
+            color: var(--yellow) !important;
+        }
         </style>
         """, unsafe_allow_html=True)
         
         # Create sidebar
         logger.info("Creating sidebar")
-        selected_model, api_status = create_sidebar()
+        default_model, api_status = create_sidebar()
         
         # Main content area
         st.title("Mistral AI Chat Assistant 🔮")
         
         # Check API status before initializing chat interface
         if api_status is False:
-            st.error("❌ Impossible de se connecter à l'API Mistral. Veuillez vérifier votre clé API et réessayer.")
-            st.info("Vérifiez que la variable d'environnement MISTRAL_API_KEY est correctement définie.")
+            st.error("❌ Unable to connect to Mistral API. Please check your API key and try again.")
+            st.info("Make sure the MISTRAL_API_KEY environment variable is correctly set.")
             return
         
         # Initialize chat interface
-        logger.info(f"Initializing chat interface with model: {selected_model}")
-        chat_interface = ChatInterface(selected_model)
+        logger.info(f"Initializing chat interface with default model: {default_model}")
+        chat_interface = ChatInterface(default_model)
         chat_interface.render()
         
     except ValueError as e:
         logger.error(f"Configuration error: {str(e)}")
-        st.error(f"Erreur de configuration: {str(e)}")
+        st.error(f"Configuration error: {str(e)}")
         
     except Exception as e:
         logger.exception(f"Unexpected error: {str(e)}")
-        st.error(f"Une erreur inattendue s'est produite: {str(e)}")
-        st.info("Consultez les logs pour plus d'informations.")
+        st.error(f"An unexpected error occurred: {str(e)}")
+        st.info("Check the logs for more information.")
 
 if __name__ == "__main__":
     main() 

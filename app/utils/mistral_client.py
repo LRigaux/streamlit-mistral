@@ -27,7 +27,15 @@ def get_mistral_client(api_key=None):
         ValueError: If API key is not provided or found in environment
     """
     if not api_key:
-        api_key = st.secrets.get("MISTRAL_API_KEY")
+        # Try to get from Streamlit secrets
+        try:
+            api_key = st.secrets.get("MISTRAL_API_KEY")
+        except:
+            pass
+            
+        # If not in Streamlit secrets, try environment variables
+        if not api_key:
+            api_key = os.environ.get("MISTRAL_API_KEY")
         
     if not api_key:
         logger.error("MISTRAL_API_KEY not found")
@@ -104,7 +112,7 @@ def encode_pil_image_to_base64(pil_image):
         logger.error(f"Failed to encode PIL image: {str(e)}")
         raise
 
-def chat_with_mistral(client, model, messages, image=None, max_retries=2, timeout=60):
+def chat_with_mistral(client, model, messages, image=None, max_tokens=500, max_retries=2, timeout=60):
     """
     Send a chat request to Mistral API, with optional image.
     
@@ -113,6 +121,7 @@ def chat_with_mistral(client, model, messages, image=None, max_retries=2, timeou
         model (str): Model name to use
         messages (list): List of message dictionaries
         image (PIL.Image, optional): PIL Image to include with request
+        max_tokens (int): Maximum number of tokens in the response
         max_retries (int): Maximum number of retries on failure
         timeout (int): Timeout in seconds for the API call
         
@@ -125,6 +134,7 @@ def chat_with_mistral(client, model, messages, image=None, max_retries=2, timeou
     # Log the request
     logger.info(f"Sending chat request to Mistral API using model: {model}")
     logger.info(f"Number of messages: {len(messages)}")
+    logger.info(f"Max tokens: {max_tokens}")
     if image:
         logger.info("Request includes an image")
     
@@ -149,13 +159,14 @@ def chat_with_mistral(client, model, messages, image=None, max_retries=2, timeou
             # Check for timeout
             if time.time() - start_time > timeout:
                 logger.error(f"Request timed out after {timeout} seconds")
-                return f"Erreur: La requête a expiré après {timeout} secondes. Veuillez réessayer."
+                return f"Error: Request timed out after {timeout} seconds. Please try again."
             
             # Send request to Mistral API
             logger.info("Sending request to Mistral API...")
             response = client.chat.complete(
                 model=model,
-                messages=processed_messages
+                messages=processed_messages,
+                max_tokens=max_tokens
             )
             
             response_content = response.choices[0].message.content
@@ -164,7 +175,7 @@ def chat_with_mistral(client, model, messages, image=None, max_retries=2, timeou
                 
         except Exception as e:
             logger.error(f"Unexpected error when calling Mistral API: {str(e)}")
-            return f"Erreur inattendue: {str(e)}"
+            return f"Unexpected error: {str(e)}"
     
     # This should only happen if all retries are exhausted
-    return "Erreur: Impossible d'obtenir une réponse après plusieurs tentatives." 
+    return "Error: Could not get a response after multiple attempts." 

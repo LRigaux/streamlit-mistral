@@ -1,6 +1,6 @@
 """
 Sidebar component for the Streamlit app.
-Displays model selection, API status, and settings.
+Displays chat management options and app information.
 """
 import streamlit as st
 import logging
@@ -14,86 +14,85 @@ def create_sidebar():
     Create and render the application sidebar.
     
     Returns:
-        tuple: (selected_model, api_status)
+        bool: API status
     """
     with st.sidebar:
-        st.title("Settings")
+        st.title("Mistral Chat")
         
         # Load configuration
         config = load_config()
         
-        # Check API connection status on load
+        # Silent API check on startup
         if "api_status_checked" not in st.session_state:
             st.session_state.api_status_checked = False
             st.session_state.api_status = None
+            
+            try:
+                logger.info("Testing API connection on startup")
+                api_status = test_api_connection()
+                st.session_state.api_status = api_status
+                st.session_state.api_status_checked = True
+                logger.info(f"API connection test result: {api_status}")
+            except Exception as e:
+                logger.error(f"API connection error: {str(e)}")
+                st.session_state.api_status = False
+                st.session_state.api_status_checked = True
         
-        # Model selection
-        st.header("Model")
-        selected_model = st.selectbox(
-            "Select Mistral Model",
-            options=config["available_models"],
-            index=config["available_models"].index(config["default_model"]),
-            help="Choose which Mistral AI model to use for chat"
+        # Chat management
+        st.header("Chat Management")
+        
+        # Chat selection if multiple chats exist
+        if "chat_sessions" not in st.session_state:
+            st.session_state.chat_sessions = {"New Chat": []}
+            st.session_state.current_chat = "New Chat"
+            
+        # Create a list of available chats
+        chat_options = list(st.session_state.chat_sessions.keys())
+        
+        # Allow selection of existing chat
+        selected_chat = st.selectbox(
+            "Select Chat",
+            options=chat_options,
+            index=chat_options.index(st.session_state.current_chat)
         )
         
-        # API connection status
-        st.header("API Status")
+        # Update current chat if changed
+        if selected_chat != st.session_state.current_chat:
+            st.session_state.current_chat = selected_chat
+            # Update messages with the selected chat history
+            st.session_state.messages = st.session_state.chat_sessions[selected_chat]
+            st.rerun()
+            
+        # Button to create a new chat
+        if st.button("New Chat"):
+            # Create a new chat with a timestamp
+            import time
+            new_chat_name = f"Chat {time.strftime('%H:%M:%S')}"
+            st.session_state.chat_sessions[new_chat_name] = []
+            st.session_state.current_chat = new_chat_name
+            st.session_state.messages = []
+            st.rerun()
         
-        # Test connection automatically on first load
-        if not st.session_state.api_status_checked:
-            with st.spinner("Testing API connection..."):
-                try:
-                    logger.info("Testing API connection on startup")
-                    api_status = test_api_connection()
-                    st.session_state.api_status = api_status
-                    st.session_state.api_status_checked = True
-                    
-                    if api_status:
-                        st.success("✅ Connected to Mistral API")
-                        logger.info("API connection test successful")
-                    else:
-                        st.error("❌ Failed to connect to Mistral API")
-                        logger.error("API connection test failed")
-                except Exception as e:
-                    st.error(f"❌ Error testing API: {str(e)}")
-                    logger.exception("Error during API connection test")
-                    st.session_state.api_status = False
-                    st.session_state.api_status_checked = True
-        else:
-            # Display current status
-            if st.session_state.api_status:
-                st.success("✅ Connected to Mistral API")
-            else:
-                st.error("❌ Failed to connect to Mistral API")
-        
-        # Manual test button
-        if st.button("Test API Connection Again"):
-            with st.spinner("Testing connection..."):
-                try:
-                    logger.info("Manually testing API connection")
-                    api_status = test_api_connection()
-                    st.session_state.api_status = api_status
-                    
-                    if api_status:
-                        st.success("✅ Connected to Mistral API")
-                        logger.info("Manual API connection test successful")
-                    else:
-                        st.error("❌ Failed to connect to Mistral API")
-                        logger.error("Manual API connection test failed")
-                except Exception as e:
-                    st.error(f"❌ Error testing API: {str(e)}")
-                    logger.exception("Error during manual API connection test")
-                    st.session_state.api_status = False
+        # Delete current chat button
+        if len(chat_options) > 1 and st.button("Delete Current Chat"):
+            del st.session_state.chat_sessions[st.session_state.current_chat]
+            st.session_state.current_chat = list(st.session_state.chat_sessions.keys())[0]
+            st.session_state.messages = st.session_state.chat_sessions[st.session_state.current_chat]
+            st.rerun()
         
         # Information about the application
         st.header("About")
         st.markdown("""
         This application uses Mistral AI's models to provide chat and image analysis capabilities.
-        """)
         
+        #### Features:
+        - Multi-modal chat with image analysis
+        - Multiple chat sessions
+        - Beautiful autumn-inspired theme
+        """)
         
         # Footer
         st.markdown("---")
-        st.caption("LRIGAUX -Mistral AI Chat App © 2025")
+        st.caption("Mistral AI Chat App © 2025")
     
-    return selected_model, st.session_state.api_status 
+    return config["default_model"], st.session_state.api_status 

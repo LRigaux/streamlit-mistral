@@ -6,21 +6,23 @@ import streamlit as st
 from PIL import Image
 import logging
 from app.utils.mistral_client import get_mistral_client, chat_with_mistral
+from app.config.config import load_config
 
 logger = logging.getLogger(__name__)
 
 class ChatInterface:
     """Chat interface component for the Streamlit application."""
     
-    def __init__(self, model_name):
+    def __init__(self, default_model):
         """
         Initialize the chat interface.
         
         Args:
-            model_name (str): Name of the Mistral model to use
+            default_model (str): Default Mistral model to use
         """
-        self.model_name = model_name
+        self.default_model = default_model
         self.client = get_mistral_client()
+        self.config = load_config()
         
         # Initialize session state for chat history if not exists
         if "messages" not in st.session_state:
@@ -32,6 +34,11 @@ class ChatInterface:
         # Check if we need to process the last message
         if "needs_response" not in st.session_state:
             st.session_state.needs_response = False
+            
+        # Initialize chat sessions if needed
+        if "chat_sessions" not in st.session_state:
+            st.session_state.chat_sessions = {"New Chat": []}
+            st.session_state.current_chat = "New Chat"
     
     def render(self):
         """Render the chat interface."""
@@ -61,19 +68,47 @@ class ChatInterface:
             except Exception as e:
                 st.error(f"Error opening image: {str(e)}")
         
-        # User input
+        # User input with model selection
         with st.form(key="chat_form", clear_on_submit=True):
-            user_input = st.text_area("Your message:", key="user_input", height=100)
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                user_input = st.text_area("Your message:", key="user_input", height=100)
+            
+            with cols[1]:
+                selected_model = st.selectbox(
+                    "Model:",
+                    options=self.config["available_models"],
+                    index=self.config["available_models"].index(self.default_model)
+                )
+            
+            with cols[2]:
+                max_tokens = st.number_input(
+                    "Max tokens:",
+                    min_value=50,
+                    max_value=4000,
+                    value=500,
+                    step=50,
+                    help="Maximum number of tokens in the response"
+                )
+            
             submit_button = st.form_submit_button("Send")
             
             if submit_button and user_input:
                 logger.info(f"User submitted message: {user_input[:20]}...")
-                # Store the message and image in session state
+                logger.info(f"Using model: {selected_model}, max tokens: {max_tokens}")
+                
+                # Store the message, image and parameters in session state
                 st.session_state.last_user_input = user_input
                 st.session_state.last_image = image
+                st.session_state.selected_model = selected_model
+                st.session_state.max_tokens = max_tokens
                 
                 # Add message to chat history
                 st.session_state.messages.append({"role": "user", "content": user_input})
+                
+                # Update the chat session history
+                st.session_state.chat_sessions[st.session_state.current_chat] = st.session_state.messages
                 
                 # Set flags for processing
                 st.session_state.thinking = True
@@ -110,6 +145,8 @@ class ChatInterface:
                 
             user_input = st.session_state.last_user_input
             image = st.session_state.last_image if "last_image" in st.session_state else None
+            selected_model = st.session_state.selected_model if "selected_model" in st.session_state else self.default_model
+            max_tokens = st.session_state.max_tokens if "max_tokens" in st.session_state else 500
             
             logger.info(f"Processing message: {user_input[:20]}...")
             
@@ -122,12 +159,13 @@ class ChatInterface:
                 messages.append({"role": m["role"], "content": m["content"]})
             
             # Get response from Mistral API
-            logger.info(f"Calling Mistral API with {len(messages)} messages")
+            logger.info(f"Calling Mistral API with {len(messages)} messages, model: {selected_model}, max_tokens: {max_tokens}")
             response = chat_with_mistral(
                 client=self.client,
-                model=self.model_name,
+                model=selected_model,
                 messages=messages,
-                image=image
+                image=image,
+                max_tokens=max_tokens
             )
             
             logger.info(f"Got response from API: {response[:20]}...")
@@ -135,11 +173,17 @@ class ChatInterface:
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
             
+            # Update the session history
+            st.session_state.chat_sessions[st.session_state.current_chat] = st.session_state.messages
+            
         except Exception as e:
             # Add error message to chat
             error_msg = f"Error: {str(e)}"
             logger.error(f"Error processing message: {str(e)}")
             st.session_state.messages.append({"role": "assistant", "content": error_msg})
+            
+            # Update the session history
+            st.session_state.chat_sessions[st.session_state.current_chat] = st.session_state.messages
         
         finally:
             # Clear thinking state and needs_response flag

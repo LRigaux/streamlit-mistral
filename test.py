@@ -1,13 +1,13 @@
 """
-Tests unifiés pour l'application Mistral AI Chat.
+Unified tests for the Mistral AI Chat application.
 
-Ce fichier regroupe les tests d'API et de chat en un seul endroit,
-permettant de vérifier rapidement que tout fonctionne correctement.
+This file groups API and chat tests in one place,
+allowing you to quickly verify that everything works correctly.
 
 Usage:
-    python test.py api    # Pour tester uniquement la connexion API
-    python test.py chat   # Pour tester une conversation avec le modèle
-    python test.py        # Pour exécuter tous les tests
+    python test.py api    # To test only the API connection
+    python test.py chat   # To test a conversation with the model
+    python test.py        # To run all tests
 """
 import os
 import sys
@@ -16,79 +16,79 @@ from dotenv import load_dotenv
 from mistralai import Mistral
 from app.utils.mistral_client import get_mistral_client, test_api_connection
 
-# Configuration du logging
+# Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def test_api():
-    """Test de connexion à l'API Mistral."""
-    logger.info("=== Test de connexion à l'API Mistral ===")
+    """Test connection to the Mistral API."""
+    logger.info("=== Testing Mistral API connection ===")
     
-    # Charger les variables d'environnement
+    # Load environment variables
     load_dotenv()
-    # Récupérer la clé API
+    # Get API key
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
-        logger.error("MISTRAL_API_KEY non trouvée dans les variables d'environnement")
+        logger.error("MISTRAL_API_KEY not found in environment variables")
         return False
     
-    logger.info(f"Clé API trouvée (premiers 4 caractères: {api_key[:4]}...)")
+    logger.info(f"API key found (first 4 characters: {api_key[:4]}...)")
     
-    # Test d'initialisation du client
+    # Test client initialization
     try:
-        logger.info("Initialisation du client Mistral...")
+        logger.info("Initializing Mistral client...")
         client = get_mistral_client()
-        logger.info("✓ Client initialisé avec succès")
+        logger.info("✓ Client initialized successfully")
     except Exception as e:
-        logger.error(f"✗ Échec de l'initialisation du client: {str(e)}")
+        logger.error(f"✗ Client initialization failed: {str(e)}")
         return False
     
-    # Test de connexion à l'API
+    # Test API connection
     try:
-        logger.info("Test de connexion à l'API...")
+        logger.info("Testing API connection...")
         connection_status = test_api_connection()
         
         if connection_status:
-            logger.info("✓ Connexion à l'API réussie")
+            logger.info("✓ API connection successful")
             return True
         else:
-            logger.error("✗ Échec de la connexion à l'API")
+            logger.error("✗ API connection failed")
             return False
     except Exception as e:
-        logger.error(f"✗ Erreur lors du test de connexion: {str(e)}")
+        logger.error(f"✗ Error during connection test: {str(e)}")
         return False
 
 def test_chat():
-    """Test de conversation avec le modèle Mistral."""
-    logger.info("=== Test de conversation avec le modèle Mistral ===")
+    """Test conversation with the Mistral model."""
+    logger.info("=== Testing conversation with Mistral model ===")
     
-    # Charger les variables d'environnement
+    # Load environment variables
     load_dotenv()
     
-    # Récupérer la clé API
+    # Get API key
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
-        logger.error("MISTRAL_API_KEY non trouvée dans les variables d'environnement")
+        logger.error("MISTRAL_API_KEY not found in environment variables")
         return False
     
     try:
-        # Initialiser le client
-        logger.info("Initialisation du client Mistral...")
+        # Initialize client
+        logger.info("Initializing Mistral client...")
         client = Mistral(api_key=api_key)
         
-        # Test d'une conversation simple
-        logger.info("Test d'une conversation simple...")
+        # Test a simple conversation
+        logger.info("Testing a simple conversation...")
         
         # Conversation
         conversation = []
         
-        # Premier message
-        user_message = "Bonjour ! J'aimerais en savoir plus sur les saisons. Quelle est ta saison préférée et pourquoi?"
+        # First message
+        user_message = "Hello! I'd like to know more about seasons. What's your favorite season and why?"
         logger.info(f"User: {user_message}")
         
         conversation.append({"role": "user", "content": user_message})
         
-        # Obtenir la réponse
+        # Get response
         response = client.chat.complete(
             model="mistral-small-latest",
             messages=conversation,
@@ -99,16 +99,16 @@ def test_chat():
         assistant_message = response.choices[0].message.content
         logger.info(f"Assistant: {assistant_message}")
         
-        # Ajouter à la conversation
+        # Add to conversation
         conversation.append({"role": "assistant", "content": assistant_message})
         
-        # Deuxième message pour tester le contexte
-        user_message = "Peux-tu me parler des couleurs typiques de l'automne?"
+        # Second message to test context
+        user_message = "Can you tell me about the typical colors of autumn?"
         logger.info(f"User: {user_message}")
         
         conversation.append({"role": "user", "content": user_message})
         
-        # Obtenir la réponse
+        # Get response
         response = client.chat.complete(
             model="mistral-small-latest",
             messages=conversation,
@@ -118,42 +118,42 @@ def test_chat():
         assistant_message = response.choices[0].message.content
         logger.info(f"Assistant: {assistant_message}")
         
-        logger.info("✓ Test de conversation réussi")
+        logger.info("✓ Conversation test successful")
         return True
     except Exception as e:
-        logger.error(f"✗ Erreur inattendue: {str(e)}")
+        logger.error(f"✗ Unexpected error: {str(e)}")
         return False
 
 if __name__ == "__main__":
-    logger.info("Démarrage des tests...")
+    logger.info("Starting tests...")
     
-    # Déterminer quels tests exécuter en fonction des arguments
+    # Determine which tests to run based on arguments
     if len(sys.argv) > 1:
         if sys.argv[1].lower() == "api":
-            # Exécuter uniquement le test API
+            # Run only API test
             success = test_api()
         elif sys.argv[1].lower() == "chat":
-            # Exécuter uniquement le test de chat
+            # Run only chat test
             success = test_chat()
         else:
-            logger.error(f"Argument invalide: {sys.argv[1]}")
-            logger.info("Options valides: 'api', 'chat'")
+            logger.error(f"Invalid argument: {sys.argv[1]}")
+            logger.info("Valid options: 'api', 'chat'")
             sys.exit(1)
     else:
-        # Exécuter tous les tests
+        # Run all tests
         api_success = test_api()
         
         if api_success:
             chat_success = test_chat()
             success = api_success and chat_success
         else:
-            logger.error("Le test API a échoué, test de chat annulé")
+            logger.error("API test failed, chat test canceled")
             success = False
     
-    # Afficher le résultat final
+    # Display final result
     if success:
-        logger.info("✅ Tous les tests ont réussi!")
+        logger.info("✅ All tests passed!")
         sys.exit(0)
     else:
-        logger.error("❌ Certains tests ont échoué")
+        logger.error("❌ Some tests failed")
         sys.exit(1) 
