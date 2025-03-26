@@ -1,5 +1,5 @@
 """
-Logo and branding elements for the Mistral Chat application.
+Logo and branding elements for the LRIGS Chat application.
 """
 
 

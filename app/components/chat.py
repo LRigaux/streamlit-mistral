@@ -3,36 +3,104 @@ Chat interface component for the Streamlit app.
 Handles chat history, user input, and image uploads.
 """
 import streamlit as st
-from typing import Dict, List, Optional, Any
 from PIL import Image
 import logging
 import re
 from app.utils.mistral_client import get_mistral_client, chat_with_mistral
 from app.config.config import load_config
-from app.static.styles import get_fixed_input_css, get_scroll_to_input_js
-from app.state.session_state import (
-    get_current_chat_messages,
-    get_chat_title,
-    update_chat_title,
-    add_message
-)
+import io
+import base64
 
 logger = logging.getLogger(__name__)
 
 class ChatInterface:
     """Chat interface component for the Streamlit application."""
     
-    def __init__(self, default_model: str):
+    def __init__(self, default_model):
         """
         Initialize the chat interface.
         
         Args:
-            default_model: Default Mistral model to use
+            default_model (str): Default Mistral model to use
         """
         self.default_model = default_model
         self.client = get_mistral_client()
         self.config = load_config()
+        
+        # Initialize session state for chat history if not exists
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+            
+        if "thinking" not in st.session_state:
+            st.session_state.thinking = False
+            
+        # Check if we need to process the last message
+        if "needs_response" not in st.session_state:
+            st.session_state.needs_response = False
+            
+        # Initialize chat sessions if needed
+        if "chat_sessions" not in st.session_state:
+            st.session_state.chat_sessions = {"New Chat": []}
+            st.session_state.current_chat = "New Chat"
+        
+        # Initialize chat titles if needed
+        if "chat_titles" not in st.session_state:
+            st.session_state.chat_titles = {}
+        
+        if "user_input" not in st.session_state:
+            st.session_state.user_input = ""
+        
+        if "uploaded_images" not in st.session_state:
+            st.session_state.uploaded_images = []
+        
+        if "image_previews" not in st.session_state:
+            st.session_state.image_previews = []
     
+    def _create_image_preview(self, image):
+        """Create a small preview of the uploaded image"""
+        # Resize image for preview
+        preview_size = (50, 50)
+        preview = image.copy()
+        preview.thumbnail(preview_size)
+        
+        # Convert to base64
+        buffered = io.BytesIO()
+        preview.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        return f"data:image/png;base64,{img_str}"
+
+    def _display_image_previews(self):
+        """Display image previews in a grid"""
+        if st.session_state.image_previews:
+            st.markdown("""
+                <style>
+                .image-preview-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 8px;
+                }
+                .image-preview {
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 4px;
+                    object-fit: cover;
+                    border: 1px solid #ddd;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .image-preview:hover {
+                    transform: scale(1.05);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('<div class="image-preview-container">', unsafe_allow_html=True)
+            for i, preview in enumerate(st.session_state.image_previews):
+                st.markdown(f'<img src="{preview}" class="image-preview" onclick="removeImage({i})">', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
     def render(self):
         """Render the chat interface with a fixed input area."""
         # Use a 2-row layout: chat history in top (scrollable), input in bottom (fixed)
@@ -50,20 +118,10 @@ class ChatInterface:
             st.rerun()
         
         # Get the current chat title or derive from first message
-        current_title = get_chat_title()
+        current_title = self._get_chat_title()
             
         # Display the chat title
-        with chat_history_container:
-            if current_title:
-                # Allow editing the title
-                new_title = st.text_input("Chat title", value=current_title, key="chat_title_input")
-                if new_title != current_title and new_title.strip():
-                    # Update the chat title
-                    update_chat_title(st.session_state.current_chat, new_title.strip())
-                    # Force refresh
-                    st.rerun()
-            
-            # Display chat history in the scrollable area
+        with chat_history_container:           # Display chat history in the scrollable area
             self._display_chat_history()
         
         # Create the fixed input container
@@ -71,30 +129,29 @@ class ChatInterface:
             # Mark the input area with a special div we can target with CSS
             st.markdown("<div id='fixed-input-container'></div>", unsafe_allow_html=True)
             
-            # Add custom CSS and JavaScript for fixed input and scrolling
-            st.markdown(get_fixed_input_css(), unsafe_allow_html=True)
-            st.markdown(f"<script>{get_scroll_to_input_js()}</script>", unsafe_allow_html=True)
+            # Add custom CSS to make input area fixed
+            st.markdown("""
+            <style>
+            /* Fixed input container at bottom */
+            #fixed-input-container {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: white;
+                padding-bottom: 20px;
+                padding-top: 10px;
+                border-top: 1px solid #e0e0e0;
+                margin-left: 1rem; /* Match Streamlit's default padding */
+                z-index: 100;
+            }
             
-            # Upload image option with cleaner layout
-            col1, col2 = st.columns([1, 3])
-            
-            with col1:
-                uploaded_file = st.file_uploader(
-                    "Image", 
-                    type=self.config["allowed_image_types"],
-                    label_visibility="collapsed",
-                    help="Upload an image to analyze with Mistral multimodal model"
-                )
-            
-            # Check if an image was uploaded
-            image = None
-            if uploaded_file is not None:
-                try:
-                    image = Image.open(uploaded_file)
-                    with col2:
-                        st.image(image, use_column_width=True)
-                except Exception as e:
-                    st.error(f"Error opening image: {str(e)}")
+            /* Ensure content doesn't get hidden behind fixed input */
+            .main .block-container {
+                padding-bottom: 240px !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
             
             # User input with model selection - cleaner design
             with st.form(key="chat_form", clear_on_submit=True):
@@ -107,6 +164,48 @@ class ChatInterface:
                     label_visibility="collapsed"
                 )
                 
+                # Add a button to scroll to input
+                if st.session_state.messages:
+                    st.markdown("""
+                    <script>
+                    function scrollToInput() {
+                        document.getElementById('fixed-input-container').scrollIntoView({behavior: 'smooth'});
+                    }
+                    document.addEventListener('DOMContentLoaded', function() {
+                        var chatMessages = document.querySelectorAll('[data-testid="stChatMessage"]');
+                        chatMessages.forEach(function(message) {
+                            message.addEventListener('click', scrollToInput);
+                        });
+                    });
+                    </script>
+                    """, unsafe_allow_html=True)
+                
+                # Upload image option with cleaner layout
+                col1, col2 = st.columns([1, 3])
+                
+                with col1:
+                    uploaded_files = st.file_uploader(
+                        "Upload images",
+                        type=["png", "jpg", "jpeg"],
+                        accept_multiple_files=True,
+                        key="file_uploader"
+                    )
+                
+                # Check if images were uploaded
+                images = []
+                if uploaded_files:
+                    for file in uploaded_files:
+                        try:
+                            image = Image.open(file)
+                            images.append(image)
+                            st.session_state.uploaded_images.append(image)
+                            st.session_state.image_previews.append(self._create_image_preview(image))
+                            file.seek(0)  # Reset file pointer for future reads
+                        except Exception as e:
+                            st.error(f"Error opening image: {str(e)}")
+                
+                # Display image previews
+                self._display_image_previews()
                 # Model and token controls in a more subtle layout
                 cols = st.columns([3, 2, 2, 1])
                 
@@ -125,8 +224,8 @@ class ChatInterface:
                     max_tokens = st.number_input(
                         "Tokens",
                         min_value=50,
-                        max_value=4000,
-                        value=500,
+                        max_value=2000,
+                        value=200,
                         step=50,
                         help="Maximum number of tokens in the response",
                         label_visibility="collapsed"
@@ -135,60 +234,61 @@ class ChatInterface:
                 with cols[3]:
                     submit_button = st.form_submit_button("Send")
                 
-                # Handle form submission
                 if submit_button and user_input:
-                    self._handle_user_message(user_input, image, selected_model, max_tokens)
+                    logger.info(f"User submitted message: {user_input[:20]}...")
+                    logger.info(f"Using model: {selected_model}, max tokens: {max_tokens}")
+                    
+                    # Store the message, image and parameters in session state
+                    st.session_state.last_user_input = user_input
+                    st.session_state.selected_model = selected_model
+                    st.session_state.max_tokens = max_tokens
+                    
+                    # Add message to chat history
+                    st.session_state.messages.append({"role": "user", "content": user_input})
+                    
+                    # Update the chat session history
+                    st.session_state.chat_sessions[st.session_state.current_chat] = st.session_state.messages
+                    
+                    # Update chat title based on first message if needed
+                    if len(st.session_state.messages) == 1:
+                        # Extract a title from the first message
+                        self._update_chat_title_from_message(user_input)
+                    
+                    # Set flags for processing
+                    st.session_state.thinking = True
+                    st.session_state.needs_response = True
+                    
+                    # Trigger rerun to show thinking indicator
+                    st.rerun()
     
-    def _handle_user_message(self, user_input: str, image: Optional[Image.Image], 
-                             selected_model: str, max_tokens: int):
-        """
-        Handle a new user message submission.
+    def _get_chat_title(self):
+        """Get the title for the current chat or derive from first message."""
+        current_chat = st.session_state.current_chat
         
-        Args:
-            user_input: The user's message
-            image: Optional image uploaded by user
-            selected_model: Selected Mistral model
-            max_tokens: Maximum number of tokens for response
-        """
-        logger.info(f"User submitted message: {user_input[:20]}...")
-        logger.info(f"Using model: {selected_model}, max tokens: {max_tokens}")
+        # If we have a stored title, use it
+        if current_chat in st.session_state.chat_titles:
+            return st.session_state.chat_titles[current_chat]
         
-        # Store the message, image and parameters in session state
-        st.session_state.last_user_input = user_input
-        st.session_state.last_image = image
-        st.session_state.selected_model = selected_model
-        st.session_state.max_tokens = max_tokens
-        
-        # Add message to chat history
-        add_message("user", user_input)
-        
-        # Update chat title based on first message if needed
-        if len(st.session_state.messages) == 1:
+        # If not, check if we can derive from the first message
+        messages = st.session_state.chat_sessions.get(current_chat, [])
+        if messages and len(messages) > 0:
             # Extract a title from the first message
-            self._update_chat_title_from_message(user_input)
+            first_message = messages[0]["content"]
+            title = self._derive_title_from_message(first_message)
+            # Store it for future use
+            st.session_state.chat_titles[current_chat] = title
+            return title
         
-        # Set flags for processing
-        st.session_state.thinking = True
-        st.session_state.needs_response = True
-        
-        # Trigger rerun to show thinking indicator
-        st.rerun()
+        # Default
+        return current_chat
     
-    def _derive_title_from_message(self, message: str) -> str:
-        """
-        Derive a title from a message content.
-        
-        The title is derived by:
-        1. Using the full message if it's shorter than 40 characters
-        2. Finding a natural sentence break before 40 characters
-        3. Truncating with ellipsis as a fallback
-        
-        Args:
-            message: The message text to derive a title from
-            
-        Returns:
-            A string containing the derived title
-        """
+    def _update_chat_title_from_message(self, message):
+        """Update the chat title based on a message."""
+        title = self._derive_title_from_message(message)
+        st.session_state.chat_titles[st.session_state.current_chat] = title
+    
+    def _derive_title_from_message(self, message):
+        """Derive a title from a message content."""
         # Truncate to max ~40 chars, trying to break at sentence if possible
         max_length = 40
         if len(message) <= max_length:
@@ -205,16 +305,6 @@ class ChatInterface:
         # Fallback to truncating with ellipsis
         return message[:max_length] + "..."
     
-    def _update_chat_title_from_message(self, message: str):
-        """
-        Update the chat title based on a message.
-        
-        Args:
-            message: Message to derive title from
-        """
-        title = self._derive_title_from_message(message)
-        update_chat_title(st.session_state.current_chat, title)
-    
     def _display_chat_history(self):
         """Display the chat history with improved styling."""
         # Create a container for the chat history
@@ -222,8 +312,7 @@ class ChatInterface:
         
         with chat_container:
             # Empty space before starting messages for better spacing
-            messages = get_current_chat_messages()
-            if not messages:
+            if not st.session_state.messages:
                 st.markdown("""
                 <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 400px; opacity: 0.6;">
                     <div style="font-size: 1.5em; margin-bottom: 1em;">Begin a new conversation</div>
@@ -232,8 +321,14 @@ class ChatInterface:
                 """, unsafe_allow_html=True)
             
             # Display messages
-            for idx, message in enumerate(messages):
+            for idx, message in enumerate(st.session_state.messages):
                 with st.chat_message(message["role"]):
+                    if message["role"] == "user" and "images" in message:
+                        # Display user's images in a grid
+                        cols = st.columns(min(3, len(message["images"])))
+                        for idx, img_data in enumerate(message["images"]):
+                            with cols[idx]:
+                                st.image(img_data, use_column_width=True)
                     st.write(message["content"])
             
             # Show thinking indicator with subtle animation
@@ -279,49 +374,52 @@ class ChatInterface:
         logger.info("Processing message...")
         
         try:
-            with st.spinner("Getting response from Mistral AI..."):
-                if "last_user_input" not in st.session_state:
-                    logger.error("No last_user_input found in session state")
-                    st.session_state.thinking = False
-                    st.session_state.needs_response = False
-                    return
-                    
-                user_input = st.session_state.last_user_input
-                image = st.session_state.last_image if "last_image" in st.session_state else None
-                selected_model = st.session_state.selected_model if "selected_model" in st.session_state else self.default_model
-                max_tokens = st.session_state.max_tokens if "max_tokens" in st.session_state else 500
+            if "last_user_input" not in st.session_state:
+                logger.error("No last_user_input found in session state")
+                st.session_state.thinking = False
+                st.session_state.needs_response = False
+                return
                 
-                logger.info(f"Processing message: {user_input[:20]}...")
-                
-                # Prepare messages for API call - exclude the "thinking..." message if it exists
-                messages = []
-                for m in st.session_state.messages:
-                    # Skip any assistant "thinking..." messages
-                    if m["role"] == "assistant" and m["content"] == "Thinking...":
-                        continue
-                    messages.append({"role": m["role"], "content": m["content"]})
-                
-                # Get response from Mistral API
-                logger.info(f"Calling Mistral API with {len(messages)} messages, model: {selected_model}, max_tokens: {max_tokens}")
-                response = chat_with_mistral(
-                    client=self.client,
-                    model=selected_model,
-                    messages=messages,
-                    image=image,
-                    max_tokens=max_tokens
-                )
-                
-                logger.info(f"Got response from API: {response[:20]}...")
-                
-                # Add assistant response to chat history
-                add_message("assistant", response)
-        
+            user_input = st.session_state.last_user_input
+            selected_model = st.session_state.selected_model if "selected_model" in st.session_state else self.default_model
+            max_tokens = st.session_state.max_tokens if "max_tokens" in st.session_state else 500
+            
+            logger.info(f"Processing message: {user_input[:20]}...")
+            
+            # Prepare messages for API call - exclude the "thinking..." message if it exists
+            messages = []
+            for m in st.session_state.messages:
+                # Skip any assistant "thinking..." messages
+                if m["role"] == "assistant" and m["content"] == "Thinking...":
+                    continue
+                messages.append({"role": m["role"], "content": m["content"]})
+            
+            # Get response from Mistral API
+            logger.info(f"Calling Mistral API with {len(messages)} messages, model: {selected_model}, max_tokens: {max_tokens}")
+            response = chat_with_mistral(
+                client=self.client,
+                model=selected_model,
+                messages=messages,
+                max_tokens=max_tokens
+            )
+            
+            logger.info(f"Got response from API: {response[:20]}...")
+            
+            # Add assistant response to chat history
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            
+            # Update the session history
+            st.session_state.chat_sessions[st.session_state.current_chat] = st.session_state.messages
+            
         except Exception as e:
             # Add error message to chat
             error_msg = f"Error: {str(e)}"
             logger.error(f"Error processing message: {str(e)}")
-            add_message("assistant", error_msg)
+            st.session_state.messages.append({"role": "assistant", "content": error_msg})
             
+            # Update the session history
+            st.session_state.chat_sessions[st.session_state.current_chat] = st.session_state.messages
+        
         finally:
             # Clear thinking state and needs_response flag
             logger.info("Clearing thinking state and needs_response flag")
@@ -331,5 +429,7 @@ class ChatInterface:
             # Clear saved input and image
             if "last_user_input" in st.session_state:
                 del st.session_state.last_user_input
-            if "last_image" in st.session_state:
-                del st.session_state.last_image 
+            if "uploaded_images" in st.session_state:
+                del st.session_state.uploaded_images
+            if "image_previews" in st.session_state:
+                del st.session_state.image_previews 
